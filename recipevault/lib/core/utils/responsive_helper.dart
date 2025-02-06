@@ -6,20 +6,32 @@ enum ResponsiveSizes {
   desktopWeb,
 }
 
+/// Interface for window metrics provider to enable testing
+abstract class WindowMetricsProvider {
+  Size getWindowSize();
+}
+
+/// Default implementation using Flutter's WidgetsBinding
+class DefaultWindowMetricsProvider implements WindowMetricsProvider {
+  @override
+  Size getWindowSize() {
+    final view = WidgetsBinding.instance.platformDispatcher.views.first;
+    return view.physicalSize / view.devicePixelRatio;
+  }
+}
+
 class ResponsiveHelper {
+  final WindowMetricsProvider _metricsProvider;
+  
   // Breakpoint constants
   static const double mobileMaxWidth = 600.0;
   static const double tabletMaxWidth = 1024.0;
-  
-  // Device type detection using FlutterView
-  static ResponsiveSizes whichDevice() {
-    // Use FlutterView for more efficient size detection
-    final view = WidgetsBinding.instance.platformDispatcher.views.first;
-    final physicalSizeWidth = view.physicalSize.width;
-    final devicePixelRatio = view.devicePixelRatio;
-    final widthInLogicalPixels = physicalSizeWidth / devicePixelRatio;
 
-    // Determine device type using switch expression
+  ResponsiveHelper([WindowMetricsProvider? metricsProvider]) 
+    : _metricsProvider = metricsProvider ?? DefaultWindowMetricsProvider();
+  
+  ResponsiveSizes whichDevice() {
+    final widthInLogicalPixels = _metricsProvider.getWindowSize().width;
     return switch (widthInLogicalPixels) {
       <= mobileMaxWidth => ResponsiveSizes.mobile,
       >= mobileMaxWidth + 1 && <= tabletMaxWidth => ResponsiveSizes.tablet,
@@ -27,20 +39,14 @@ class ResponsiveHelper {
     };
   }
 
-  // Get current window size without BuildContext
-  static Size currentWindowSize() {
-    final view = WidgetsBinding.instance.platformDispatcher.views.first;
-    return view.physicalSize / view.devicePixelRatio;
-  }
+  Size currentWindowSize() => _metricsProvider.getWindowSize();
 
-  // Check orientation without BuildContext
-  static bool isPortrait() {
+  bool isPortrait() {
     final size = currentWindowSize();
     return size.height > size.width;
   }
 
-  // Get appropriate padding based on device type
-  static EdgeInsets screenPadding() {
+  EdgeInsets screenPadding() {
     return switch (whichDevice()) {
       ResponsiveSizes.mobile => const EdgeInsets.all(16.0),
       ResponsiveSizes.tablet => const EdgeInsets.all(24.0),
@@ -48,8 +54,7 @@ class ResponsiveHelper {
     };
   }
 
-  // Get content constraints based on device type
-  static double maxContentWidth() {
+  double maxContentWidth() {
     return switch (whichDevice()) {
       ResponsiveSizes.mobile => double.infinity,
       ResponsiveSizes.tablet => 700.0,
@@ -57,8 +62,7 @@ class ResponsiveHelper {
     };
   }
 
-  // Get split screen ratio based on device type
-  static double splitScreenRatio() {
+  double splitScreenRatio() {
     return switch (whichDevice()) {
       ResponsiveSizes.mobile => 1.0, // Full width
       ResponsiveSizes.tablet => 0.4, // 40% for list

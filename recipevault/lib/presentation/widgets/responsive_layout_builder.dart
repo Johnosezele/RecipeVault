@@ -2,12 +2,12 @@
 import 'package:flutter/material.dart';
 import 'package:recipevault/core/utils/responsive_helper.dart';
 
-
 class ResponsiveLayoutBuilder extends StatefulWidget {
   final Widget mobile;
   final Widget tablet;
   final Widget desktopWeb;
   final bool maintainState;
+  final ResponsiveHelper? responsiveHelper;
 
   const ResponsiveLayoutBuilder({
     super.key,
@@ -15,6 +15,7 @@ class ResponsiveLayoutBuilder extends StatefulWidget {
     required this.tablet,
     required this.desktopWeb,
     this.maintainState = true,
+    this.responsiveHelper,
   });
 
   @override
@@ -22,33 +23,30 @@ class ResponsiveLayoutBuilder extends StatefulWidget {
 }
 
 class _ResponsiveLayoutBuilderState extends State<ResponsiveLayoutBuilder> with WidgetsBindingObserver {
+  late final ResponsiveHelper _responsiveHelper;
+
   @override
   void initState() {
     super.initState();
-    // Add this instance as an observer
+    _responsiveHelper = widget.responsiveHelper ?? ResponsiveHelper();
     WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   void dispose() {
-    // Remove this instance as an observer
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   @override
   void didChangeMetrics() {
-    // This is called whenever the window metrics change
     if (mounted) setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
-    // Get current device type
-    final deviceType = ResponsiveHelper.whichDevice();
-    
-    // Apply device-specific padding
-    final padding = ResponsiveHelper.screenPadding();
+    final deviceType = _responsiveHelper.whichDevice();
+    final padding = _responsiveHelper.screenPadding();
     
     // Build responsive child with appropriate constraints
     Widget buildResponsiveChild(Widget child) {
@@ -56,7 +54,7 @@ class _ResponsiveLayoutBuilderState extends State<ResponsiveLayoutBuilder> with 
         child: Container(
           padding: padding,
           constraints: BoxConstraints(
-            maxWidth: ResponsiveHelper.maxContentWidth(),
+            maxWidth: _responsiveHelper.maxContentWidth(),
           ),
           child: child,
         ),
