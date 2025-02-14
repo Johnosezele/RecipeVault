@@ -1,27 +1,22 @@
-import 'package:equatable/equatable.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
 
-class Recipe extends Equatable {
-    final String id;
-    final String name;
-    final String? instructions;
-    final String? thumbnailUrl;
-    final List<Ingredient> ingredients;
+part 'recipe.freezed.dart';
 
-    Recipe({
-        required this.id,
-        required this.name;
-        this.instructions,
-        this.thumbnailUrl,
-        required this.ingredients,
-    });
+@freezed
+class Recipe with _$Recipe {
+  const factory Recipe({
+    required String id,
+    required String name,
+    String? instructions,
+    String? thumbnailUrl,
+    required List<Ingredient> ingredients,
+  }) = _Recipe;
 }
 
-class Ingredient {
-    final String name;
-    final String? measure;
-
-    Ingredient({
-        required this.name,
-        this.measure,
-    });
+@freezed
+class Ingredient with _$Ingredient {
+  const factory Ingredient({
+    required String name,
+    String? measure,
+  }) = _Ingredient;
 }
