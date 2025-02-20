@@ -10,6 +10,8 @@ class Recipe with _$Recipe {
     String? instructions,
     String? thumbnailUrl,
     required List<Ingredient> ingredients,
+    @Default(false) bool isFavorite,
+    @Default(false) bool isBookmarked,
   }) = _Recipe;
 }
 
