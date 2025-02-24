@@ -1,33 +1,32 @@
 import 'package:fpdart/fpdart.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:recipevault/data/models/recipe_model.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/errors/failure.dart';
 import '../../domain/entities/recipe.dart';
 import '../../domain/repositories/recipe_repository.dart';
-import '../../services/api_service.dart';
 import '../datasources/local_datasource.dart';
+import '../datasources/remote_datasource.dart';
 
 /// Provider for RecipeRepository implementation
 final recipeRepositoryProvider = Provider<RecipeRepository>((ref) {
-  final apiService = ref.watch(apiServiceProvider);
+  final remoteDataSource = ref.watch(remoteDataSourceProvider);
   final prefs = ref.watch(sharedPreferencesProvider);
   
   return RecipeRepositoryImpl(
-    apiService: apiService,
+    remoteDataSource: remoteDataSource,
     localDataSource: LocalDataSource(prefs),
   );
 });
 
 /// Implementation of [RecipeRepository] that coordinates between
-/// remote data ([APIService]) and local data ([LocalDataSource])
+/// remote data ([RemoteDataSource]) and local data ([LocalDataSource])
 class RecipeRepositoryImpl implements RecipeRepository {
-  final APIService apiService;
+  final RemoteDataSource remoteDataSource;
   final LocalDataSource localDataSource;
 
   RecipeRepositoryImpl({
-    required this.apiService,
+    required this.remoteDataSource,
     required this.localDataSource,
   });
 
@@ -49,16 +48,12 @@ class RecipeRepositoryImpl implements RecipeRepository {
 
       // Check cache first
       final cachedData = await localDataSource.getCachedRecipesByLetter(letter);
-      final List<RecipeModel> recipes;
+      final recipes = cachedData != null
+          ? cachedData.map((json) => RecipeModel.fromJson(json)).toList()
+          : await remoteDataSource.getRecipesByLetter(letter);
 
-      if (cachedData != null) {
-        // Use cached data
-        recipes = cachedData
-            .map((json) => RecipeModel.fromJson(json))
-            .toList();
-      } else {
-        // Fetch from API and cache
-        recipes = await apiService.getRecipesByLetter(letter);
+      if (cachedData == null) {
+        // Cache the new data
         await localDataSource.cacheRecipesByLetter(
           letter,
           recipes.map((r) => r.toJson()).toList(),
@@ -84,7 +79,7 @@ class RecipeRepositoryImpl implements RecipeRepository {
     } on ConnectionFailure catch (e) {
       return Left(e);
     } catch (e) {
-      return Left(
+      return const Left(
         ServerFailure(
           message: 'Unexpected error occurred',
           statusCode: 500,
@@ -108,7 +103,7 @@ class RecipeRepositoryImpl implements RecipeRepository {
       final result = await _getRecipeWithState(recipeId);
       return result;
     } catch (e) {
-      return Left(
+      return const Left(
         CacheFailure(
           message: 'Failed to toggle favorite status',
           operation: 'toggleFavorite',
@@ -132,7 +127,7 @@ class RecipeRepositoryImpl implements RecipeRepository {
       final result = await _getRecipeWithState(recipeId);
       return result;
     } catch (e) {
-      return Left(
+      return const Left(
         CacheFailure(
           message: 'Failed to toggle bookmark status',
           operation: 'toggleBookmark',
@@ -148,7 +143,7 @@ class RecipeRepositoryImpl implements RecipeRepository {
       final recipes = await _getRecipesWithState(favoriteIds);
       return Right(recipes);
     } catch (e) {
-      return Left(
+      return const Left(
         CacheFailure(
           message: 'Failed to get favorite recipes',
           operation: 'getFavorites',
@@ -164,7 +159,7 @@ class RecipeRepositoryImpl implements RecipeRepository {
       final recipes = await _getRecipesWithState(bookmarkIds);
       return Right(recipes);
     } catch (e) {
-      return Left(
+      return const Left(
         CacheFailure(
           message: 'Failed to get bookmarked recipes',
           operation: 'getBookmarks',
@@ -177,7 +172,7 @@ class RecipeRepositoryImpl implements RecipeRepository {
   Future<Either<Failure, Recipe>> _getRecipeWithState(String recipeId) async {
     try {
       // In a real app, you might want to cache this data
-      final recipes = await apiService.getRecipesByLetter(recipeId[0]);
+      final recipes = await remoteDataSource.getRecipesByLetter(recipeId[0]);
       final recipe = recipes.firstWhere((r) => r.id == recipeId);
       
       final isFavorite = await localDataSource.isFavorite(recipeId);
@@ -190,7 +185,7 @@ class RecipeRepositoryImpl implements RecipeRepository {
         ),
       );
     } catch (e) {
-      return Left(
+      return const Left(
         ServerFailure(
           message: 'Failed to get recipe details',
           statusCode: 500,
@@ -212,7 +207,7 @@ class RecipeRepositoryImpl implements RecipeRepository {
 
     final allRecipes = <Recipe>[];
     for (final letter in recipesByLetter.keys) {
-      final recipes = await apiService.getRecipesByLetter(letter);
+      final recipes = await remoteDataSource.getRecipesByLetter(letter);
       final targetIds = recipesByLetter[letter]!;
       
       final matchingRecipes = recipes.where((r) => targetIds.contains(r.id));
