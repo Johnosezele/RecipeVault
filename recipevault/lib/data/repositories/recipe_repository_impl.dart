@@ -1,5 +1,6 @@
 import 'package:fpdart/fpdart.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:recipevault/data/models/recipe_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/errors/failure.dart';
@@ -30,10 +31,39 @@ class RecipeRepositoryImpl implements RecipeRepository {
     required this.localDataSource,
   });
 
+  /// Performs cache maintenance operations
+  Future<void> _maintainCache() async {
+    try {
+      await localDataSource.maintainCache();
+    } catch (e) {
+      // Log error but don't throw - cache maintenance is non-critical
+      print('Cache maintenance failed: $e');
+    }
+  }
+
   @override
   Future<Either<Failure, List<Recipe>>> getRecipesByLetter(String letter) async {
     try {
-      final recipes = await apiService.getRecipesByLetter(letter);
+      // Trigger cache maintenance (non-blocking)
+      _maintainCache();
+
+      // Check cache first
+      final cachedData = await localDataSource.getCachedRecipesByLetter(letter);
+      final List<RecipeModel> recipes;
+
+      if (cachedData != null) {
+        // Use cached data
+        recipes = cachedData
+            .map((json) => RecipeModel.fromJson(json))
+            .toList();
+      } else {
+        // Fetch from API and cache
+        recipes = await apiService.getRecipesByLetter(letter);
+        await localDataSource.cacheRecipesByLetter(
+          letter,
+          recipes.map((r) => r.toJson()).toList(),
+        );
+      }
       
       // Convert models to entities and merge with local state
       final recipesWithState = await Future.wait(
